@@ -1,0 +1,82 @@
+name: Windows-Installer (Tonmaschine V16)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'Tonmaschine.py'
+      - 'Tonmaschine.iss'
+      - 'Tonmaschine.ico'
+      - 'requirements.txt'
+      - '.github/workflows/windows-installer.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installer:
+    name: Windows Setup (x64)
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Quellcode abrufen
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: 'x64'
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+
+      - name: Abhaengigkeiten installieren
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt "pyinstaller>=6.10,<7"
+
+      - name: Python-Syntax pruefen
+        shell: pwsh
+        run: python -m py_compile Tonmaschine.py
+
+      - name: Programm als Windows-EXE bauen
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed `
+            --name Tonmaschine --icon Tonmaschine.ico `
+            --collect-all customtkinter --collect-all lg_bartalk Tonmaschine.py
+          if (-not (Test-Path 'dist/Tonmaschine.exe')) { throw 'Programm-EXE fehlt' }
+
+      - name: Inno Setup Compiler finden
+        id: inno
+        shell: pwsh
+        run: |
+          $locations = @(
+            (Get-Command 'ISCC.exe' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          )
+          $compiler = $locations | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+          if (-not $compiler) {
+            choco install innosetup --yes --no-progress
+            $compiler = (Get-Command 'ISCC.exe' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue)
+          }
+          if (-not $compiler) { throw 'Inno Setup konnte nicht gefunden werden' }
+          "iscc=$compiler" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Windows-Installationsdatei bauen
+        shell: pwsh
+        run: |
+          & '${{ steps.inno.outputs.iscc }}' /Qp 'Tonmaschine.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup fehlgeschlagen: $LASTEXITCODE" }
+          if (-not (Test-Path 'Installer/Tonmaschine_Setup.exe')) { throw 'Setup-EXE fehlt' }
+
+      - name: Windows-Installer bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tonmaschine-V16-Windows-Setup
+          path: Installer/Tonmaschine_Setup.exe
+          if-no-files-found: error
+          retention-days: 30
