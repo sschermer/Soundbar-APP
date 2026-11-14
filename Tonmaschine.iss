@@ -1,5 +1,5 @@
 #define AppName "Tonmaschine"
-#define AppVersion "1.1.0"
+#define AppVersion "1.0.0"
 [Setup]
 AppId={{5D73E80C-950F-4D55-9EA0-84668A79537A}
 AppName={#AppName}

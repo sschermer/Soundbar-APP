@@ -33,7 +33,7 @@ Bei der Erstinstallation werden die IP-Adresse der Soundbar und der gewünschte 
 
 Die Nutzung erfolgt auf eigene Verantwortung.
 
-**Entwicklungsstand V16:** Automatisierte Tests für die Profilverwaltung, Konfigurationsübernahme und mehrere Fehlersituationen wurden erfolgreich ausgeführt. Ein vollständiger Windows-Installations- und Soundbar-Funktionstest steht noch aus. Näheres steht in [PRUEFBERICHT.md](PRUEFBERICHT.md).
+**Version 1.0.0:** Die automatisierten Tests für die Profilverwaltung, Konfigurationsübernahme und mehrere Fehlersituationen wurden erfolgreich ausgeführt. Die Installation unter Windows, die Verbindung zur LG S95QR sowie das Laden und Speichern von Klangprofilen wurden praktisch erfolgreich getestet. Weitere technische Details stehen in [PRUEFBERICHT.md](PRUEFBERICHT.md).
 
 ### Aus dem Quellcode bauen
 
