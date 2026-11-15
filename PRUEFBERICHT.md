@@ -35,3 +35,13 @@ Die Datei `tests/test_storage.py` enthält mit Mock-Abhängigkeiten ausführbare
 **Freigabestatus:** Der Quellcode kann als überprüfter Entwicklungsstand veröffentlicht werden. Für einen als funktionsfähig beworbenen Windows-Installer sollten die oben genannten realen Windows-/Soundbar-Tests vorab stattfinden.
 
 **Teststand:** 14 von 14 automatisierten Tests bestanden (einschließlich paralleler NAS-Schreibzugriffe auf einem simulierten gemeinsamen Ordner). Die Installer-Prüfung ist statisch und ersetzt keinen Windows-Installationstest.
+
+
+## Nachtrag 15.11.2026: Korrektur-Release v1.0.1
+
+Die Installation und die Verbindung zur LG S95QR einschließlich Laden und
+Speichern von Klangprofilen wurden unter Windows praktisch getestet.
+Das Korrektur-Release fügt die vollständigen Lizenztexte und Urheberhinweise
+als Installationsdateien hinzu. Die geprüften Build-Abhängigkeiten wurden
+festgeschrieben. Die eigentlichen Programmfunktionen bleiben unverändert.
+Dies ist eine technische Vorprüfung, keine anwaltliche Freigabe.

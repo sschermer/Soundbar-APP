@@ -1,5 +1,5 @@
 #define AppName "Tonmaschine"
-#define AppVersion "1.0.0"
+#define AppVersion "1.0.1"
 [Setup]
 AppId={{5D73E80C-950F-4D55-9EA0-84668A79537A}
 AppName={#AppName}
@@ -21,6 +21,9 @@ ArchitecturesInstallIn64BitMode=x64compatible
 
 [Files]
 Source: "dist\Tonmaschine.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "third_party_licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\Tonmaschine"; Filename: "{app}\Tonmaschine.exe"

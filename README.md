@@ -27,24 +27,24 @@ Die Anwendung wurde speziell für die LG S95QR entwickelt. Die Kompatibilität m
 
 ## Installation und Nutzung
 
-Die Anwendung kann nach Bereitstellung eines Installationspakets über den Bereich **Releases** dieses GitHub-Repositories heruntergeladen werden.
+Den aktuellen Installer gibt es unter [GitHub Releases](https://github.com/sschermer/Soundbar-APP/releases/latest). **Version 1.0.1** ergänzt die vollständigen Lizenzunterlagen, ohne die Programmfunktionen gegenüber 1.0.0 zu verändern.
 
 Bei der Erstinstallation werden die IP-Adresse der Soundbar und der gewünschte Speicherort für Klangprofile abgefragt. Bei Updates bleibt eine bereits vorhandene Konfiguration unverändert. Einstellungen lassen sich innerhalb der Anwendung ändern. Wenn eine ältere V15-Konfiguration noch keine Soundbar-IP enthält, muss diese einmalig in der App eingetragen werden.
 
 Die Nutzung erfolgt auf eigene Verantwortung.
 
-**Version 1.0.0:** Die automatisierten Tests für die Profilverwaltung, Konfigurationsübernahme und mehrere Fehlersituationen wurden erfolgreich ausgeführt. Die Installation unter Windows, die Verbindung zur LG S95QR sowie das Laden und Speichern von Klangprofilen wurden praktisch erfolgreich getestet. Weitere technische Details stehen in [PRUEFBERICHT.md](PRUEFBERICHT.md).
+**Version 1.0.1:** Die automatisierten Tests für die Profilverwaltung, Konfigurationsübernahme und mehrere Fehlersituationen wurden erfolgreich ausgeführt. Die Installation unter Windows, die Verbindung zur LG S95QR sowie das Laden und Speichern von Klangprofilen wurden praktisch erfolgreich getestet. Weitere technische Details stehen in [PRUEFBERICHT.md](PRUEFBERICHT.md).
 
 ### Aus dem Quellcode bauen
 
 Python 3.10 oder neuer wird benötigt. Für die Windows-EXE zusätzlich `pyinstaller` installieren:
 
 ```powershell
-py -m pip install -r requirements.txt pyinstaller
-py -m PyInstaller --noconfirm --clean --onefile --windowed --name Tonmaschine --icon Tonmaschine.ico --collect-all customtkinter --collect-all Crypto Tonmaschine.py
+py -m pip install -r requirements.txt -r requirements-build.txt
+py -m PyInstaller --noconfirm --clean --onefile --windowed --name Tonmaschine --icon Tonmaschine.ico --collect-all customtkinter --collect-all lg_bartalk Tonmaschine.py
 ```
 
-Anschließend `Tonmaschine.iss` mit Inno Setup kompilieren. Der Installer wird in `Installer` erzeugt. Vor der öffentlichen Weitergabe eines kompilierten Installers sind die tatsächlich gebündelten Drittlizenzen und erforderlichen Hinweise beizufügen (siehe [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+Anschließend `Tonmaschine.iss` mit Inno Setup kompilieren. Der Installer wird in `Installer` erzeugt. Er installiert die Lizenztexte aus [`third_party_licenses/`](third_party_licenses/) und die [Drittanbieterhinweise](THIRD_PARTY_NOTICES.md) mit. Bei Änderungen der Paketversionen müssen die Lizenztexte vor der Veröffentlichung neu überprüft werden.
 
 Die automatisierten Tests lassen sich mit `py -m pip install -r requirements-dev.txt` und anschließend `py -m pytest -q tests` ausführen.
 
