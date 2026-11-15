@@ -390,6 +390,9 @@ class Controller:
         """Update the selector from device reports, including partial notifications."""
         if message_name not in ('FUNC_VIEW_INFO', 'SPK_LIST_VIEW_INFO'):
             return
+        if 'i_curr_func' not in data and not (
+                message_name == 'FUNC_VIEW_INFO' and 'ai_func_list' in data):
+            return
         if message_name == 'FUNC_VIEW_INFO' and isinstance(data.get('ai_func_list'), list):
             self.input_reported_list = True
             self.available_inputs = [

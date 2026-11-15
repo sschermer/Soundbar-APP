@@ -198,12 +198,14 @@ def test_network_error_disables_controls(mod):
     c.status=Var('')
     c.mode_busy=True
     c.profile_busy=True
+    c.source_menu=DummyControl()
     toggle=DummyControl()
     c.toggle_controls={'b_drc':(Var(False),toggle,'set_drc')}
     c.update_mode_buttons=lambda:None
     c.update_profile_highlight=lambda:None
     c.poll()
     assert c.ready is False and toggle.state=='disabled'
+    assert c.source_menu.state == 'disabled'
     assert c.root.after_calls and 'Fehler' in c.status.get()
 
 
