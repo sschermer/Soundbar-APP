@@ -20,7 +20,7 @@ object TemescalCodec {
     private const val MAX_LENGTH = 1024 * 1024
 
     private fun cipher(mode: Int) = Cipher.getInstance("AES/CBC/PKCS5Padding").apply {
-        init(mode, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
+        init(mode, SecretKeySpec(key, "AES"), IvParameterSpec(TemescalCodec.iv))
     }
 
     fun encryptJson(json: String): ByteArray {
