@@ -15,7 +15,7 @@ object ProfileCodec {
     /** The JSON fields match Tonmaschine_Profile.json from the Windows app. */
     fun encode(profiles: Map<String, SoundProfile>): String {
         val result = JSONObject()
-        profiles.toSortedMap(String.CASE_INSENSITIVE_ORDER).forEach { (name, p) ->
+        profiles.toSortedMap().forEach { (name, p) ->
             require(name.isNotBlank() && p.valid())
             val entry = JSONObject().put("mode", p.mode)
                 .put("levels", JSONObject(p.levels))
