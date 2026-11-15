@@ -50,6 +50,27 @@ def atomic_write_json(path, data):
 
 MODES = {'AI Sound Pro': 19, 'Standard': 0, 'Cinema': 7, 'Clear Voice Pro': 26, 'Sports': 21, 'Music (Meridian)': 6, 'Game': 22, 'Bass Blast': 14}
 MODE_BY_ID = {v:k for k,v in MODES.items()}
+# S95QR inputs are selected from the soundbar's ai_func_list; additionally,
+# keep the currently observed eARC code, which can be missing from that list.
+INPUT_NAMES = {
+    0: 'WLAN', 1: 'Bluetooth', 4: 'Optisch', 6: 'HDMI 1',
+    7: 'HDMI ARC', 10: 'HDMI 2', 11: 'HDMI 3',
+    15: 'Optisch / ARC', 18: 'USB 1', 19: 'USB', 20: 'HDMI eARC',
+}
+
+
+def normalize_audio_signal(value):
+    """Display the reported format without inferring any channel count."""
+    return (value.strip() or '–') if isinstance(value, str) else '–'
+
+
+def input_choices(reported, active=None, observed=()):
+    """Known advertised inputs, and known active inputs that firmware omitted."""
+    codes = []
+    for code in tuple(reported or ()) + tuple(observed or ()) + (active,):
+        if type(code) is int and code in INPUT_NAMES and code not in codes:
+            codes.append(code)
+    return [(INPUT_NAMES[code], code) for code in codes]
 LEVELS = [
     ('Subwoofer', 'i_woofer_level', -15, 6, 15, 'set_woofer_level', True),
     ('Center', 'i_center_level', -6, 6, 6, 'set_center_level', True),
@@ -99,11 +120,20 @@ class Controller:
         self.load_profiles()
         self.last_mode = None
         self.mode_busy = False
+        self.last_input = None
+        self.input_busy = False
+        self.input_reported_list = False
+        self.available_inputs = []
+        self.observed_inputs = []
+        self.input_options_by_name = {}
+        self.source_var = tk.StringVar(value='–')
+        self.audio_signal_var = tk.StringVar(value='–')
         self.last_settings = {}
         self.bass_display = tk.StringVar(value='–')
         self.treble_display = tk.StringVar(value='–')
         self.build_ui()
         self.root.after(80, self.poll)
+        self.root.after(5000, self.refresh_signal)
         self.root.protocol('WM_DELETE_WINDOW', self.close)
         if self.ip.get().strip():
             self.connect()
@@ -182,6 +212,27 @@ class Controller:
                       command=lambda: self.step_volume(1)).pack(side='left')
         ctk.CTkLabel(volume_row, textvariable=self.volume_display, width=38,
                      font=('Segoe UI', 15, 'bold')).pack(side='left', padx=(8, 0))
+
+        signal_box = section('Eingang und Audioformat')
+        signal_row = ctk.CTkFrame(signal_box, fg_color='transparent')
+        signal_row.pack(fill='x', padx=12, pady=(2, 11))
+        input_column = ctk.CTkFrame(signal_row, fg_color='transparent')
+        input_column.pack(side='left', padx=(0, 16))
+        ctk.CTkLabel(input_column, text='Zuspieler', text_color=MUTED, anchor='w',
+                     font=('Segoe UI', 11)).pack(anchor='w')
+        self.source_menu = ctk.CTkOptionMenu(
+            input_column, variable=self.source_var, values=['–'], width=235,
+            height=34, fg_color=BTN, button_color=BLUE, button_hover_color='#5377B9',
+            command=self.choose_input)
+        self.source_menu.pack(anchor='w', pady=(3, 0))
+        self.source_menu.configure(state='disabled')
+        signal_column = ctk.CTkFrame(signal_row, fg_color='transparent')
+        signal_column.pack(side='left', fill='x', expand=True)
+        ctk.CTkLabel(signal_column, text='Erkanntes Audioformat', text_color=MUTED,
+                     anchor='w', font=('Segoe UI', 11)).pack(anchor='w')
+        ctk.CTkLabel(signal_column, textvariable=self.audio_signal_var,
+                     font=('Segoe UI', 14, 'bold'), anchor='w').pack(
+                         anchor='w', pady=(6, 0))
 
         toggle_box = section('Klangoptionen')
         toggle_row = ctk.CTkFrame(toggle_box, fg_color='transparent')
@@ -334,6 +385,49 @@ class Controller:
             button.configure(fg_color='#4265A7' if selected else '#303746',
                              hover_color='#5377B9' if selected else '#43506A',
                              state='normal' if self.ready and not self.mode_busy else 'disabled')
+
+    def update_input_status(self, message_name, data):
+        """Update the selector from device reports, including partial notifications."""
+        if message_name not in ('FUNC_VIEW_INFO', 'SPK_LIST_VIEW_INFO'):
+            return
+        if message_name == 'FUNC_VIEW_INFO' and isinstance(data.get('ai_func_list'), list):
+            self.input_reported_list = True
+            self.available_inputs = [
+                code for code in data['ai_func_list']
+                if type(code) is int and code in INPUT_NAMES
+            ]
+        reported = data.get('i_curr_func')
+        if type(reported) is int:
+            self.last_input = reported
+            if reported in INPUT_NAMES and reported not in self.observed_inputs:
+                self.observed_inputs.append(reported)
+        choices = input_choices(self.available_inputs, self.last_input, self.observed_inputs)
+        self.input_options_by_name = dict(choices)
+        self.source_menu.configure(values=[name for name, _ in choices] or ['–'])
+        self.source_var.set(INPUT_NAMES.get(self.last_input, f'Eingang {self.last_input}')
+                            if self.last_input is not None else '–')
+        self.source_menu.configure(
+            state='normal' if self.ready and self.input_reported_list
+            and len(choices) > 1 and not self.input_busy else 'disabled')
+
+    def choose_input(self, name):
+        """Switch source independently of the stored sound-profile settings."""
+        if self.updating or not self.ready or self.input_busy:
+            return
+        code = self.input_options_by_name.get(name)
+        if code is None or code == self.last_input:
+            return
+        self.input_busy = True
+        self.source_menu.configure(state='disabled')
+        self.status.set(f'Wechsle Eingang zu {name} ...')
+
+        def task():
+            self.client.set_func(code)
+            time.sleep(0.4)
+            self.client.get_func()
+            self.client.get_info()
+            self.events.put(('input_done', code))
+        self.work(task)
 
     def mark_profile_dirty(self):
         if self.active_profile is not None and not self.profile_busy:
@@ -717,6 +811,15 @@ class Controller:
             messagebox.showerror('Konfiguration', str(exc))
             return
         self.ready = False
+        self.input_busy = False
+        self.input_reported_list = False
+        self.available_inputs = []
+        self.observed_inputs = []
+        self.last_input = None
+        self.input_options_by_name = {}
+        self.source_var.set('–')
+        self.audio_signal_var.set('–')
+        self.source_menu.configure(values=['–'], state='disabled')
         self.status.set('Verbinde ...')
         self.connection_text.set('● Verbinde ...')
         self.connection_label.configure(text_color='#A7B4C8')
@@ -725,6 +828,7 @@ class Controller:
                 self.client.close()
             self.client = LGSoundbarClient(address, callback=self.callback)
             self.client.get_info()
+            self.client.get_func()
             self.client.get_eq()
             self.client.get_settings()
             # Do not mark the connection ready before the initial commands succeed.
@@ -735,7 +839,14 @@ class Controller:
         if not self.client:
             self.connect()
             return
-        self.work(lambda: (self.client.get_info(), self.client.get_eq(), self.client.get_settings()))
+        self.work(lambda: (self.client.get_info(), self.client.get_func(),
+                           self.client.get_eq(), self.client.get_settings()))
+
+    def refresh_signal(self):
+        """Read-only polling supplements spontaneous audio format notifications."""
+        if self.ready and self.client:
+            self.work(lambda: (self.client.get_info(), self.client.get_func()))
+        self.root.after(5000, self.refresh_signal)
 
     @staticmethod
     def toggle_arg(method):
@@ -851,6 +962,9 @@ class Controller:
                     self.ready = True
                     self.update_mode_buttons()
                     self.update_profile_highlight()
+                    self.source_menu.configure(
+                        state='normal' if self.input_reported_list
+                        and len(self.input_options_by_name) > 1 else 'disabled')
                     self.status.set('Verbunden mit ' + value)
                     self.connection_text.set('● Verbunden')
                     self.connection_label.configure(text_color='#80CFAE')
@@ -859,6 +973,16 @@ class Controller:
                             control.configure(state='normal')
                         else:
                             control.configure(state='disabled')
+                elif kind == 'input_done':
+                    self.input_busy = False
+                    self.source_menu.configure(
+                        state='normal' if self.ready and self.input_reported_list
+                        and len(self.input_options_by_name) > 1 else 'disabled')
+                    self.source_var.set(
+                        INPUT_NAMES.get(self.last_input, '–')
+                        if self.last_input is not None else '–')
+                    self.status.set('Eingang umgeschaltet.' if self.last_input == value
+                                    else 'Umschaltbefehl gesendet; prüfe Soundbar-Status.')
                 elif kind == 'mode_done':
                     self.mode_busy = False
                     self.update_mode_buttons()
@@ -872,7 +996,9 @@ class Controller:
                     self.connection_text.set('● Fehler')
                     self.connection_label.configure(text_color='#F1A1A1')
                     self.mode_busy = False
+                    self.input_busy = False
                     self.profile_busy = False
+                    self.source_menu.configure(state='disabled')
                     for _, control, _ in self.toggle_controls.values():
                         control.configure(state='disabled')
                     self.update_mode_buttons()
@@ -881,6 +1007,9 @@ class Controller:
                 elif kind == 'response' and isinstance(value, dict) and value.get('result') == 'ok':
                     data = value.get('data') or {}
                     self.updating = True
+                    self.update_input_status(value.get('msg'), data)
+                    if value.get('msg') == 'SPK_LIST_VIEW_INFO' and 's_audio_source' in data:
+                        self.audio_signal_var.set(normalize_audio_signal(data['s_audio_source']))
                     if 'i_vol' in data and 'volume' not in self.pending:
                         self.vol_scale.set(int(data['i_vol']))
                         self.volume_display.set(str(data['i_vol']))

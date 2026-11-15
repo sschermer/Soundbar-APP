@@ -10,11 +10,18 @@ Die Anwendung ermöglicht die Anpassung von Klangeinstellungen und die Speicheru
 
 - Steuerung ausgewählter Soundbar-Einstellungen über das lokale Netzwerk
 - Auswahl verschiedener Klangmodi
+- Umschalten der von der Soundbar gemeldeten Zuspieler (WLAN, Bluetooth, HDMI, Optisch/ARC usw.)
+- Live-Anzeige des empfangenen Audioformats (PCM, Dolby Audio, Dolby Atmos usw.; ohne unbelegte Kanalzahlen)
 - Individuelle Anpassung der Lautsprecherpegel
 - Steuerung von Surround, Night Time und Dynamic Range Control (DRC)
 - Speichern, Laden und Löschen eigener Klangprofile
 - Wahlweise lokale Speicherung oder Speicherung auf einem NAS
 - Windows-Installationsassistent zur Einrichtung der Verbindung und des Speicherorts
+
+**In Entwicklung (v1.1.0-Vorschau):** Die Eingangs- und Audioformatanzeige
+ist im Quellcode ergänzt. Das Audioformat wurde mit der S95QR praktisch
+nachgewiesen. Eingangswahl und neue Oberfläche benötigen noch einen Test
+am Gerät; der stabile Installer bleibt vorerst v1.0.1.
 
 ## Voraussetzungen
 

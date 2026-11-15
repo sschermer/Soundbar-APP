@@ -249,3 +249,78 @@ def test_two_nas_writers_keep_both_profiles(state,tmp_path):
     content=json.loads((share/'Tonmaschine_Profile.json').read_text(encoding='utf-8'))
     assert set(content)=={'A','B'}
     assert not (share/'.Tonmaschine_write_lock').exists()
+
+
+# Audio/source feature tests for the v1.1 preview.
+def test_audio_signal_preserves_device_label_without_channel_guess(mod):
+    assert mod.normalize_audio_signal(' PCM ') == 'PCM'
+    assert mod.normalize_audio_signal('DOLBY AUDIO') == 'DOLBY AUDIO'
+    assert mod.normalize_audio_signal('DOLBY ATMOS') == 'DOLBY ATMOS'
+    assert mod.normalize_audio_signal('NO SIGNAL') == 'NO SIGNAL'
+    assert mod.normalize_audio_signal(None) == '–'
+
+
+def test_input_choices_only_include_device_advertised_and_observed(mod):
+    choices = mod.input_choices([0, 1, 15, 6, 10, 19, 111, 1], 20, [20])
+    assert choices == [
+        ('WLAN', 0), ('Bluetooth', 1), ('Optisch / ARC', 15),
+        ('HDMI 1', 6), ('HDMI 2', 10), ('USB', 19), ('HDMI eARC', 20)]
+    assert mod.input_choices([], None) == []
+
+
+def test_selector_keeps_observed_earc_when_missing_from_input_list(mod):
+    class Menu:
+        def __init__(self):
+            self.opts = {}
+        def configure(self, **kwargs):
+            self.opts.update(kwargs)
+    c = mod.Controller.__new__(mod.Controller)
+    c.input_reported_list = False
+    c.available_inputs = []
+    c.observed_inputs = []
+    c.last_input = None
+    c.input_busy = False
+    c.ready = True
+    c.source_menu = Menu()
+    c.source_var = Var('–')
+    c.input_options_by_name = {}
+    c.update_input_status('SPK_LIST_VIEW_INFO', {'i_curr_func': 20})
+    assert c.source_var.get() == 'HDMI eARC'
+    assert c.source_menu.opts['state'] == 'disabled'
+    c.update_input_status('FUNC_VIEW_INFO',
+                          {'ai_func_list': [0, 1, 15, 6, 10, 19], 'i_curr_func': 20})
+    assert c.input_options_by_name['HDMI eARC'] == 20
+    assert c.input_options_by_name['Bluetooth'] == 1
+    assert c.source_menu.opts['state'] == 'normal'
+    c.update_input_status('FUNC_VIEW_INFO', {'i_curr_func': 1})
+    assert c.source_var.get() == 'Bluetooth'
+    assert c.input_options_by_name['HDMI eARC'] == 20
+
+
+def test_switch_source_only_calls_set_func_and_reads_back(mod, monkeypatch):
+    class Menu:
+        def configure(self, **kwargs):
+            pass
+    calls = []
+    class Client:
+        def set_func(self, code):
+            calls.append(('set_func', code))
+        def get_func(self):
+            calls.append(('get_func',))
+        def get_info(self):
+            calls.append(('get_info',))
+    c = mod.Controller.__new__(mod.Controller)
+    c.ready = True
+    c.updating = False
+    c.input_busy = False
+    c.last_input = 20
+    c.input_options_by_name = {'Bluetooth': 1}
+    c.source_menu = Menu()
+    c.status = Var('')
+    c.client = Client()
+    c.events = queue.Queue()
+    c.work = lambda f: f()
+    monkeypatch.setattr(mod.time, 'sleep', lambda _: None)
+    c.choose_input('Bluetooth')
+    assert calls == [('set_func', 1), ('get_func',), ('get_info',)]
+    assert c.events.get_nowait() == ('input_done', 1)
