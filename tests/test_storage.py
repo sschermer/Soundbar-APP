@@ -326,3 +326,40 @@ def test_switch_source_only_calls_set_func_and_reads_back(mod, monkeypatch):
     c.choose_input('Bluetooth')
     assert calls == [('set_func', 1), ('get_func',), ('get_info',)]
     assert c.events.get_nowait() == ('input_done', 1)
+
+
+
+def test_periodic_input_poll_does_not_reconfigure_unchanged_selector(mod):
+    """The 5-second status polling must not recreate or redraw the dropdown."""
+    class Menu:
+        def __init__(self):
+            self.calls = []
+        def configure(self, **kwargs):
+            self.calls.append(kwargs)
+
+    c = mod.Controller.__new__(mod.Controller)
+    c.ready = True
+    c.input_busy = False
+    c.input_reported_list = False
+    c.available_inputs = []
+    c.observed_inputs = []
+    c.last_input = None
+    c.input_options_by_name = {}
+    c.source_menu = Menu()
+    c.source_var = Var('–')
+    full = {'ai_func_list': [0, 1, 15, 6, 10, 19], 'i_curr_func': 20}
+    c.update_input_status('FUNC_VIEW_INFO', full)
+    assert c.source_var.get() == 'HDMI eARC'
+    assert c.source_menu.calls
+    c.source_menu.calls.clear()
+    for _ in range(5):
+        c.update_input_status('FUNC_VIEW_INFO', full)
+        c.update_input_status('SPK_LIST_VIEW_INFO', {'i_curr_func': 20})
+    assert c.source_menu.calls == []
+    c.update_input_status('FUNC_VIEW_INFO', {'i_curr_func': 1})
+    assert c.source_var.get() == 'Bluetooth'
+    assert c.source_menu.calls == []  # Value changes, no menu options rebuild
+    c.source_menu.calls.clear()
+    c.update_input_status('FUNC_VIEW_INFO', {'ai_func_list': [0, 1, 15, 6, 10],
+                                             'i_curr_func': 1})
+    assert any('values' in call for call in c.source_menu.calls)

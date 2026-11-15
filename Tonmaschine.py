@@ -387,12 +387,13 @@ class Controller:
                              state='normal' if self.ready and not self.mode_busy else 'disabled')
 
     def update_input_status(self, message_name, data):
-        """Update the selector from device reports, including partial notifications."""
+        """Refresh only changed inputs; periodic polling must not redraw the menu."""
         if message_name not in ('FUNC_VIEW_INFO', 'SPK_LIST_VIEW_INFO'):
             return
         if 'i_curr_func' not in data and not (
                 message_name == 'FUNC_VIEW_INFO' and 'ai_func_list' in data):
             return
+        previously_reported = self.input_reported_list
         if message_name == 'FUNC_VIEW_INFO' and isinstance(data.get('ai_func_list'), list):
             self.input_reported_list = True
             self.available_inputs = [
@@ -405,13 +406,19 @@ class Controller:
             if reported in INPUT_NAMES and reported not in self.observed_inputs:
                 self.observed_inputs.append(reported)
         choices = input_choices(self.available_inputs, self.last_input, self.observed_inputs)
-        self.input_options_by_name = dict(choices)
-        self.source_menu.configure(values=[name for name, _ in choices] or ['–'])
-        self.source_var.set(INPUT_NAMES.get(self.last_input, f'Eingang {self.last_input}')
-                            if self.last_input is not None else '–')
-        self.source_menu.configure(
-            state='normal' if self.ready and self.input_reported_list
-            and len(choices) > 1 and not self.input_busy else 'disabled')
+        new_options = dict(choices)
+        choices_changed = list(new_options.items()) != list(self.input_options_by_name.items())
+        if choices_changed:
+            self.input_options_by_name = new_options
+            self.source_menu.configure(values=[name for name, _ in choices] or ['–'])
+        displayed = (INPUT_NAMES.get(self.last_input, f'Eingang {self.last_input}')
+                     if self.last_input is not None else '–')
+        if self.source_var.get() != displayed:
+            self.source_var.set(displayed)
+        if choices_changed or previously_reported != self.input_reported_list:
+            self.source_menu.configure(
+                state='normal' if self.ready and self.input_reported_list
+                and len(choices) > 1 and not self.input_busy else 'disabled')
 
     def choose_input(self, name):
         """Switch source independently of the stored sound-profile settings."""
@@ -1012,7 +1019,9 @@ class Controller:
                     self.updating = True
                     self.update_input_status(value.get('msg'), data)
                     if value.get('msg') == 'SPK_LIST_VIEW_INFO' and 's_audio_source' in data:
-                        self.audio_signal_var.set(normalize_audio_signal(data['s_audio_source']))
+                        audio = normalize_audio_signal(data['s_audio_source'])
+                        if self.audio_signal_var.get() != audio:
+                            self.audio_signal_var.set(audio)
                     if 'i_vol' in data and 'volume' not in self.pending:
                         self.vol_scale.set(int(data['i_vol']))
                         self.volume_display.set(str(data['i_vol']))
