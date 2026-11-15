@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import de.tonmaschine.android.storage.NasConnection
+import de.tonmaschine.android.storage.ProfileSource
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -57,12 +60,30 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
     val message by vm.message.collectAsState()
     val profiles by vm.profiles.collectAsState()
     val selected by vm.selectedProfile.collectAsState()
+    val profileSource by vm.source.collectAsState()
+    val nasConfig by vm.nasConnection.collectAsState()
+    val nasOnline by vm.nasOnline.collectAsState()
+    val nasStatus by vm.nasStatus.collectAsState()
+    val profileBusy by vm.profileBusy.collectAsState()
     var settings by remember { mutableStateOf(false) }
     var profileDialog by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var expanded by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<String?>(null) }
+    var overwriteTarget by remember { mutableStateOf<String?>(null) }
+    var nasPath by remember(nasConfig.folder) { mutableStateOf(nasConfig.folder) }
+    var nasUser by remember(nasConfig.user) { mutableStateOf(nasConfig.user) }
+    var nasDomain by remember(nasConfig.domain) { mutableStateOf(nasConfig.domain) }
+    var nasPassword by remember(nasConfig.password) { mutableStateOf(nasConfig.password) }
     val active = state.connection == Connection.CONNECTED
-    MaterialTheme(colorScheme = darkColorScheme(primary = blue, background = bg, surface = panel)) {
+    MaterialTheme(colorScheme = darkColorScheme(
+        primary = blue, onPrimary = Color(0xFF101B29),
+        background = bg, onBackground = Color.White,
+        surface = panel, onSurface = Color.White,
+        onSurfaceVariant = muted, outline = Color(0xFF71819D),
+        surfaceVariant = Color(0xFF303746),
+        secondary = blue, onSecondary = Color(0xFF101B29)
+    )) {
         Column(Modifier.fillMaxSize().background(bg).statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -86,7 +107,47 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
                             Button(onClick = connect) { Text("Verbinden") }
                             OutlinedButton(onClick = vm::refresh, enabled = active) { Text("Aktualisieren") }
                         }
-                        Text("Direkte WLAN-Verbindung auf TCP 9741. Profile bleiben auf diesem Gerät.", color = muted)
+                        Text("Direkte WLAN-Verbindung auf TCP 9741.", color = muted)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Panel("Speicherort für Klangprofile") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            FilterChip(
+                                selected = profileSource == ProfileSource.LOCAL,
+                                onClick = { vm.selectProfileSource(ProfileSource.LOCAL) },
+                                enabled = !profileBusy,
+                                label = { Text("Lokal") }
+                            )
+                            FilterChip(
+                                selected = profileSource == ProfileSource.NAS,
+                                onClick = { vm.selectProfileSource(ProfileSource.NAS) },
+                                enabled = !profileBusy,
+                                label = { Text("NAS / Windows") }
+                            )
+                        }
+                        Text("Bei NAS verwenden Windows und Android dieselbe Tonmaschine_Profile.json. Lokale Profile werden nicht automatisch kopiert.", color = muted)
+                        OutlinedTextField(nasPath, { nasPath = it }, modifier = Modifier.fillMaxWidth(),
+                            label = { Text("NAS-Freigabe / Ordner") },
+                            placeholder = { Text("smb://nas/Share/Profile") }, singleLine = true)
+                        OutlinedTextField(nasUser, { nasUser = it }, modifier = Modifier.fillMaxWidth(),
+                            label = { Text("SMB-Benutzername (leer = anonym)") }, singleLine = true)
+                        OutlinedTextField(nasPassword, { nasPassword = it }, modifier = Modifier.fillMaxWidth(),
+                            label = { Text("SMB-Passwort") }, singleLine = true,
+                            visualTransformation = PasswordVisualTransformation())
+                        OutlinedTextField(nasDomain, { nasDomain = it }, modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Domäne / Arbeitsgruppe (optional)") }, singleLine = true)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = {
+                                vm.saveNasConnection(NasConnection(nasPath, nasUser, nasDomain, nasPassword))
+                            }, enabled = !profileBusy && nasPath.isNotBlank()) { Text("NAS verbinden") }
+                            OutlinedButton(onClick = vm::refreshProfiles,
+                                enabled = !profileBusy && profileSource == ProfileSource.NAS) { Text("Aktualisieren") }
+                        }
+                        Text(nasStatus, color = if (nasOnline) Color(0xFF9DE4BC) else muted)
+                        if (!nasOnline && profileSource == ProfileSource.NAS) {
+                            Text("Bei Verbindungsfehlern werden nur zwischengespeicherte NAS-Profile angezeigt. Speichern und Löschen sind gesperrt.", color = muted)
+                        }
                     }
                 }
             } else {
@@ -159,8 +220,16 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
                     item {
                         Panel("Klangprofile") {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Text("Gespeicherte Profile: ${profiles.size}", modifier = Modifier.weight(1f))
+                                Text("${profiles.size} Profile · " + (if (profileSource == ProfileSource.NAS) "NAS" else "Lokal"),
+                                    modifier = Modifier.weight(1f))
+                                if (profileSource == ProfileSource.NAS) TextButton(
+                                    onClick = vm::refreshProfiles, enabled = !profileBusy
+                                ) { Text("↻") }
                                 TextButton(onClick = { profileDialog = true }) { Text("Verwalten") }
+                            }
+                            if (profileSource == ProfileSource.NAS) {
+                                Text(nasStatus, color = if (nasOnline) Color(0xFF9DE4BC) else muted)
+                                if (!nasOnline) Text("Nur Lesekopie – Änderungen nicht möglich", color = muted)
                             }
                             profiles.keys.sorted().forEach { title ->
                                 OutlinedButton(onClick = { vm.applyProfile(title) }, enabled = active,
@@ -196,11 +265,16 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
             AlertDialog(onDismissRequest = { profileDialog = false },
                 title = { Text("Klangprofile verwalten") },
                 text = {
-                    Column {
+                    Column(Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState())) {
+                        if (profileSource == ProfileSource.NAS) Text(nasStatus, color = muted)
                         OutlinedTextField(name, { name = it }, label = { Text("Name / neuer Name") },
                             singleLine = true)
                         Spacer(Modifier.height(8.dp))
-                        Button(onClick = { vm.saveProfile(name) }, enabled = active && name.isNotBlank()) {
+                        Button(onClick = {
+                            val trimmed = name.trim()
+                            if (trimmed in profiles) overwriteTarget = trimmed
+                            else vm.saveProfile(trimmed)
+                        }, enabled = active && name.isNotBlank() && !profileBusy && vm.canEditProfiles) {
                             Text("Aktuelle Werte speichern")
                         }
                         HorizontalDivider()
@@ -208,11 +282,37 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Text(item, Modifier.weight(1f))
                                 TextButton(onClick = { name = item }) { Text("Bearbeiten") }
-                                TextButton(onClick = { vm.deleteProfile(item) }) { Text("Löschen") }
+                                TextButton(onClick = { deleteTarget = item }, enabled = !profileBusy && vm.canEditProfiles) { Text("Löschen") }
                             }
                         }
                     }
                 }, confirmButton = { TextButton(onClick = { profileDialog = false }) { Text("Schließen") } })
+        }
+        if (overwriteTarget != null) {
+            val target = overwriteTarget!!
+            AlertDialog(
+                onDismissRequest = { overwriteTarget = null },
+                title = { Text("Profil überschreiben?") },
+                text = { Text("Das Profil „${target}“ wird mit den momentan gemeldeten Soundbar-Einstellungen ersetzt. Bestehende Profile bleiben ansonsten unverändert.") },
+                confirmButton = {
+                    TextButton(onClick = { vm.saveProfile(target, overwrite = true); overwriteTarget = null },
+                        enabled = !profileBusy && vm.canEditProfiles) { Text("Überschreiben") }
+                },
+                dismissButton = { TextButton(onClick = { overwriteTarget = null }) { Text("Abbrechen") } }
+            )
+        }
+        if (deleteTarget != null) {
+            val target = deleteTarget!!
+            AlertDialog(
+                onDismissRequest = { deleteTarget = null },
+                title = { Text("Profil löschen?") },
+                text = { Text("„${target}“ wird aus " + (if (profileSource == ProfileSource.NAS) "der gemeinsamen NAS-Datei" else "dem lokalen Speicher") + " entfernt.") },
+                confirmButton = {
+                    TextButton(onClick = { vm.deleteProfile(target); deleteTarget = null },
+                        enabled = !profileBusy && vm.canEditProfiles) { Text("Endgültig löschen") }
+                },
+                dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Abbrechen") } }
+            )
         }
     }
 }
