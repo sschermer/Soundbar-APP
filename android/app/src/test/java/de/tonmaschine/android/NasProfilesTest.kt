@@ -107,6 +107,17 @@ class NasProfilesTest {
     }
 
 
+
+    @Test fun similarlyNamedWindowsProfilesRemainDistinct() {
+        val differentCase = mapOf("Kino" to profile, "kino" to profile.copy(mode = 6))
+        val encoded = ProfileCodec.encode(differentCase)
+        assertEquals(2, ProfileCodec.decode(encoded).size)
+        val nas = FakeNas(encoded)
+        val after = SharedProfileRepository(nas, sleep = {}).update("Neu", profile.copy(mode = 14))
+        assertEquals(3, after.size)
+        assertEquals(setOf("Kino", "kino", "Neu"), after.keys)
+    }
+
     @Test fun existingProfileRequiresExplicitOverwrite() {
         val original = profile.copy(mode = 7)
         val nas = FakeNas(ProfileCodec.encode(mapOf("Windows" to original)))
