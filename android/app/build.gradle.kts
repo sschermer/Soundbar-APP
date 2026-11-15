@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "de.tonmaschine.android"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "de.tonmaschine.android"
         minSdk = 26
-        targetSdk = 37
+        targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
