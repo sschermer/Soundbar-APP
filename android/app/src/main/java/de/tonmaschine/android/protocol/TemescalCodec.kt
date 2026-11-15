@@ -14,8 +14,8 @@ import javax.crypto.spec.SecretKeySpec
  * Original protocol attribution: google/python-temescal, Apache-2.0.
  */
 object TemescalCodec {
-    private val key = "T^&*J%^7tr~4^%^&I(o%^!jIJ__+a0 k".toByteArray(Charsets.UTF_8)
-    private val iv = "'%^Ur7gy$~t+f)%@".toByteArray(Charsets.UTF_8)
+    private val key: ByteArray get() = "T^&*J%^7tr~4^%^&I(o%^!jIJ__+a0 k".toByteArray(Charsets.UTF_8)
+    private val iv: ByteArray get() = "'%^Ur7gy$~t+f)%@".toByteArray(Charsets.UTF_8)
     private const val MARKER = 0x10
     private const val MAX_LENGTH = 1024 * 1024
 
