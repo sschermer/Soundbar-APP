@@ -1,0 +1,25 @@
+TONMASCHINE – AUDIOSIGNAL-DIAGNOSE (WINDOWS)
+
+1. Tonmaschine_Signaldiagnose.exe starten. Keine Installation nötig.
+2. Die Soundbar-IP wird aus der vorhandenen Tonmaschine-Konfiguration
+   eingelesen. Wenn das Feld leer ist, bitte die IP manuell eintragen.
+3. Auf "Verbinden" klicken. Das Programm liest ausschließlich Statusdaten.
+4. Einen bekannten STEREO-Titel wiedergeben, mindestens 5 Sekunden warten,
+   "Stereo (Testinhalt)" auswählen und "Messpunkt markieren" drücken.
+5. Dasselbe mit einem bekannten 5.1-Titel und einem Dolby-Atmos-Titel
+   wiederholen. Weitere Testfälle sind optional.
+6. "Protokoll speichern" klicken. Die JSON-Datei in ChatGPT hochladen.
+
+HINWEISE:
+- Weder Klangeinstellungen noch bestehende Tonmaschine-Profile werden verändert.
+- Die Formate werden NICHT aus dem Klangmodus geraten: Das Programm speichert
+  den von der Soundbar gemeldeten Rohwert und deine manuelle Testmarkierung.
+- Eine Anzeige wie "DOLBY AUDIO" belegt für sich noch keine Kanalzahl (5.1).
+- Bericht enthält weder Soundbar-IP noch MAC-Adresse oder Gerätenamen.
+- Die Abfrage erfolgt lokal über das Netzwerk. Kein Cloud-Dienst wird kontaktiert.
+- Bitte ausschließlich im eigenen bzw. vertrauenswürdigen lokalen Netz nutzen.
+- Die EXE ist nicht digital signiert; Windows SmartScreen kann nachfragen.
+
+Dieses Diagnoseprogramm ist Teil des unabhängigen Open-Source-Projekts
+Tonmaschine (MIT). Keine offizielle Verbindung zu LG Electronics.
+Quelle: https://github.com/sschermer/Soundbar-APP
