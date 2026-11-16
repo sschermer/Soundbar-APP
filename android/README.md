@@ -52,6 +52,15 @@ Open **IP / Einstellungen → Konfiguration sichern und wiederherstellen**.
 - Exported configuration does **not** include local sound profiles or the NAS profile contents. NAS profiles stay on the NAS and will be loaded through the restored settings. Local profiles remain unchanged.
 - This is a plain text backup, not an encrypted archive. The file stays wherever the user saves it, not in the app's protected preferences.
 
+## Power control (Android v0.3.2)
+
+- In the main screen, Settings is now a 48-dp gear in the upper-right corner, beside an equally-sized green power switch.
+- A verified `b_powerstatus=false` report shows just one large red wake button. It flashes green briefly on tap; the main interface returns only after the device reports `b_powerstatus=true`.
+- The app sends the captured LG power command `{"cmd":"set","msg":"SPK_LIST_VIEW_INFO","data":{"b_powerkey":true|false}}`. `b_powerstatus` is **read-only**. It never falsely marks a command as confirmed before a reply.
+- Network disconnection and unknown power status are not treated as confirmed standby. Power commands require an established TCP connection.
+- Some LG soundbars support this; **successful power-on/off on an LG S95QR is still unverified**. Networked standby must remain enabled; disconnecting Wi-Fi with a long press of the physical power key prevents network-based wake-up. The soundbar may also behave differently across firmware versions.
+- When power-off is reported, the client avoids repeated polls, since they can wake the sleeping soundbar.
+
 ## Scope and limitations
 
 - Direct encrypted Temescal TCP 9741 connection with automatic reconnect.

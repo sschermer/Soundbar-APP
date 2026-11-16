@@ -21,6 +21,10 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import de.tonmaschine.android.storage.NasConnection
@@ -42,6 +46,8 @@ private val panel = Color(0xFF232936)
 private val blue = Color(0xFF76A9FF)
 private val muted = Color(0xFFA7B4C8)
 private val foreground = Color(0xFFF0F4FA)
+private val powerGreen = Color(0xFF42D792)
+private val powerRed = Color(0xFFEB5353)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -152,6 +158,9 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
     var nasDomain by remember(nasConfig.domain) { mutableStateOf(nasConfig.domain) }
     var nasPassword by remember(nasConfig.password) { mutableStateOf(nasConfig.password) }
     val active = state.connection == Connection.CONNECTED
+    LaunchedEffect(state.powerOn) {
+        if (state.powerOn == false) settings = false
+    }
     MaterialTheme(colorScheme = darkColorScheme(
         primary = blue, onPrimary = Color(0xFF101B29),
         background = bg, onBackground = foreground,
@@ -168,6 +177,11 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
             color = bg,
             contentColor = foreground
         ) {
+            // Only confirmed standby shows the red wake button.
+            // Lost Wi-Fi connectivity is not the same as "powered off".
+            if (active && state.powerOn == false) {
+                StandbyPowerButton(onWake = { vm.setPower(true) })
+            } else {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -178,7 +192,36 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
                         Connection.DISCONNECTED -> "Offline"
                     }, color = muted)
                 }
-                TextButton(onClick = { settings = !settings }) { Text(if (settings) "Zurück" else "IP / Einstellungen") }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = { settings = !settings },
+                        modifier = Modifier.size(48.dp)
+                            .background(panel, RoundedCornerShape(14.dp))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = if (settings) "Einstellungen schließen" else "Einstellungen",
+                            tint = foreground,
+                            modifier = Modifier.size(27.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = { vm.setPower(false) },
+                        enabled = active,
+                        modifier = Modifier.size(48.dp)
+                            .background(if (active) powerGreen else panel, RoundedCornerShape(14.dp))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.PowerSettingsNew,
+                            contentDescription = "Soundbar ausschalten",
+                            tint = if (active) bg else muted,
+                            modifier = Modifier.size(27.dp)
+                        )
+                    }
+                }
             }
             if (settings) {
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
@@ -494,8 +537,43 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
             )
         }
         }
+        }
     }
 }
+@Composable
+private fun StandbyPowerButton(onWake: () -> Unit) {
+    var justPressed by remember { mutableStateOf(false) }
+    LaunchedEffect(justPressed) {
+        if (justPressed) {
+            delay(700)
+            justPressed = false
+        }
+    }
+    Box(
+        modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
+        contentAlignment = Alignment.Center
+    ) {
+        IconButton(
+            onClick = {
+                if (!justPressed) {
+                    justPressed = true
+                    onWake()
+                }
+            },
+            enabled = !justPressed,
+            modifier = Modifier.size(172.dp)
+                .background(if (justPressed) powerGreen else powerRed, CircleShape)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.PowerSettingsNew,
+                contentDescription = "Soundbar einschalten",
+                modifier = Modifier.size(92.dp),
+                tint = Color.White
+            )
+        }
+    }
+}
+
 @Composable
 private fun Panel(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().background(panel, RoundedCornerShape(14.dp)).padding(14.dp),

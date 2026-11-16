@@ -125,6 +125,10 @@ object DeviceReducer {
 }
 
 object SoundbarCommands {
+    /** Captured LG semantics: true = on; false = standby.
+     * Not yet physically verified on S95QR. Never write read-only b_powerstatus.
+     */
+    fun power(turnOn: Boolean): JSONObject = set("SPK_LIST_VIEW_INFO", "b_powerkey", turnOn)
     fun get(message: String): JSONObject {
         require(message in setOf("SPK_LIST_VIEW_INFO", "FUNC_VIEW_INFO", "EQ_VIEW_INFO", "SETTING_VIEW_INFO"))
         return JSONObject().put("cmd", "get").put("msg", message)

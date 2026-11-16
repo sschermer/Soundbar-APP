@@ -113,27 +113,27 @@ jobs:
         if: env.TONMASCHINE_SIGNED_READY == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: Tonmaschine-Android-v0.3.1-signed
+          name: Tonmaschine-Android-v0.3.2-signed
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 90
-      - name: Publish signed Android v0.3.1 release
+      - name: Publish signed Android v0.3.2 release
         if: env.TONMASCHINE_SIGNED_READY == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          tag="android-v0.3.1"
+          tag="android-v0.3.2"
           apk="app/build/outputs/apk/release/app-release.apk"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "The immutable $tag release already exists. Bump Android version for future updates."
             exit 0
           fi
-          cp "$apk" "app/build/outputs/apk/release/Tonmaschine-Android-v0.3.1.apk"
+          cp "$apk" "app/build/outputs/apk/release/Tonmaschine-Android-v0.3.2.apk"
           gh release create "$tag" \
-            "app/build/outputs/apk/release/Tonmaschine-Android-v0.3.1.apk" \
+            "app/build/outputs/apk/release/Tonmaschine-Android-v0.3.2.apk" \
             --target "$GITHUB_SHA" \
             --latest=false \
-            --title "Tonmaschine Android v0.3.1 (dauerhaft signiert)" \
-            --notes "Erstes Release mit festem Android-Signaturschluessel. Alle folgenden Updates koennen ueberinstalliert werden, sofern derselbe GitHub Actions Secret TONMASCHINE_ANDROID_SIGNING weiter verwendet und versionCode erhoeht wird. Achtung: Einmaliger Umstieg von alten, anders debug-signierten APKs kann eine Neuinstallation erfordern. Konfiguration vorher exportieren; lokale Klangprofile werden nicht mitgesichert. Physische Geraetepruefung steht aus."
+            --title "Tonmaschine Android v0.3.2 (Ein-/Ausschalten)" \
+            --notes "Android v0.3.2: gruener Power-Schalter und Zahnrad oben rechts; bei bestaetigtem Standby grosser roter Einschaltknopf mit kurzem gruenen Feedback. Sendet b_powerkey true/false und wartet auf b_powerstatus. Wichtig: Power-Steuerung ist nur auf anderen LG-Modellen belegt und muss auf der LG S95QR getestet werden. Fest signiert wie v0.3.1, als Update installierbar."

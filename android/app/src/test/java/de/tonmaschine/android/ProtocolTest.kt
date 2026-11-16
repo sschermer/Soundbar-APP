@@ -25,6 +25,30 @@ class ProtocolTest {
         try { TemescalCodec.decryptPayload(byteArrayOf(1,2)); fail("invalid") }
         catch (_: IllegalArgumentException) {}
     }
+    @Test fun powerCommandsUseExplicitLgPowerKeyAndTrackStatus() {
+        for (turnOn in listOf(true, false)) {
+            val packet = SoundbarCommands.power(turnOn)
+            assertEquals("set", packet.getString("cmd"))
+            assertEquals("SPK_LIST_VIEW_INFO", packet.getString("msg"))
+            val body = packet.getJSONObject("data")
+            assertTrue(body.has("b_powerkey"))
+            assertEquals(turnOn, body.getBoolean("b_powerkey"))
+            assertFalse(body.has("b_powerstatus"))
+        }
+        val off = DeviceReducer.reduce(DeviceState(), JSONObject(
+            """{"result":"ok","msg":"SPK_LIST_VIEW_INFO","data":{"b_powerstatus":false}}"""
+        ))
+        assertEquals(false, off.powerOn)
+        val on = DeviceReducer.reduce(off, JSONObject(
+            """{"result":"ok","msg":"SPK_LIST_VIEW_INFO","data":{"b_powerstatus":true}}"""
+        ))
+        assertEquals(true, on.powerOn)
+        assertEquals(true, DeviceReducer.reduce(on, JSONObject(
+            """{"result":"ok","msg":"FUNC_VIEW_INFO","data":{"i_curr_func":20}}"""
+        )).powerOn)
+        assertNull(DeviceState(connection = Connection.CONNECTING).powerOn)
+    }
+
     @Test fun reducerNeverGuessesAudioChannels() {
         val packet = JSONObject("""{"result":"ok","msg":"SPK_LIST_VIEW_INFO","data":{"s_audio_source":" DOLBY ATMOS ","i_vol":12}}""")
         val new = DeviceReducer.reduce(DeviceState(), packet)

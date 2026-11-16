@@ -135,6 +135,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun changed() { _selectedProfile.value = null }
     fun setVolume(n: Int) = send(SoundbarCommands.volume(n))
+
+    fun setPower(turnOn: Boolean) {
+        if (_device.value.connection != Connection.CONNECTED) {
+            _message.value = "Soundbar nicht erreichbar – keine Netzverbindung"
+            return
+        }
+        val queued = client?.send(SoundbarCommands.power(turnOn)) ?: false
+        if (!queued) {
+            _message.value = "Ein-/Ausschaltbefehl konnte nicht gesendet werden"
+            return
+        }
+        _message.value = if (turnOn) "Einschaltbefehl gesendet – warte auf Bestätigung" else
+            "Ausschaltbefehl gesendet – warte auf Bestätigung"
+        val requestGeneration = generation
+        viewModelScope.launch {
+            // Polling a sleeping device can wake it. Await unsolicited confirmation.
+            delay(5500)
+            if (generation == requestGeneration &&
+                _device.value.connection == Connection.CONNECTED &&
+                _device.value.powerOn != turnOn) {
+                _message.value = "Keine Bestätigung der Soundbar – Ein-/Ausschalten am Gerät prüfen"
+            }
+        }
+    }
     fun chooseSource(id: Int) {
         if (!_device.value.canSelectInput || id !in _device.value.selectableInputs) return
         changed()
