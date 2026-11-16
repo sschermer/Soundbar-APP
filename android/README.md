@@ -8,7 +8,22 @@ Independent Android companion for LG S95QR, built from the verified Windows refe
 - Android 8+; no PC, external service or registration required.
 - Build: JDK 17, Android SDK 36, Gradle 9.6; run `gradle :app:testDebugUnitTest :app:assembleDebug` from `android/`.
 - GitHub Actions runs the tests, builds an APK and publishes a development prerelease for changes to main.
-- Debug-signed GitHub Actions builds can use different temporary signing keys. Upgrading an already installed debug build may therefore fail with a signature mismatch. In that case, uninstall the old Android build first; this deletes **local Android profiles and configuration**, not NAS/Windows profiles. Android signing must be stabilized before official production releases.
+- Since v0.3.1, installable Android releases are built using the **same persistent signing key** from the encrypted GitHub Actions repository secret `TONMASCHINE_ANDROID_SIGNING`. GitHub Actions will never publish a newly debug-signed update when the signing secret is missing.
+- On the **first transition from v0.3.0 or earlier**, Android may require uninstalling the old debug-signed APK once. Prior to uninstalling, export your connection configuration as JSON/TXT. **Local sound profiles are not included in this export**; NAS profiles remain on the NAS. From v0.3.1 onward, updates install over the existing app without deleting its data, provided the original key is retained and `versionCode` keeps increasing.
+
+## One-time GitHub Actions signing setup (v0.3.1)
+
+The release key is generated once and **never stored in git**. The owner must add the signing bundle to an Actions repository secret:
+
+1. Securely download and permanently back up the private `.p12` signing key and its generated secret bundle from the one-time setup.
+2. Repository **Settings → Secrets and variables → Actions → New repository secret**.
+3. Secret **Name**: `TONMASCHINE_ANDROID_SIGNING`; **Value**: the *entire* contents of the corresponding one-line generated text file.
+4. Save the secret. Start **Actions → Android Tonmaschine APK → Run workflow → main** once.
+5. After the build succeeds, download the stable release asset `Tonmaschine-Android-v0.3.1.apk` from GitHub Releases.
+
+The workflow runs unit tests, builds a signed **release** APK, verifies its APK Signature Scheme v2 signature and compares the certificate SHA-256 against the public pin in `android/signing_certificate.sha256`. New versions must increment `versionCode` and continue to use exactly the same signing bundle. If the repository secret has not been entered, tests run but **no installable Android release is published**.
+
+Keep the private signing key and the matching secret offline in a secure place. Never commit, upload to an issue, or share these files. Losing the private key can permanently prevent in-place app upgrades. GitHub does not automatically run a workflow when a secret is added, hence the one-time manual workflow launch.
 
 ## Profile storage (Android v0.3.0)
 

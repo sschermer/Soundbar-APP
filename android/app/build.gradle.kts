@@ -11,9 +11,29 @@ android {
         applicationId = "de.tonmaschine.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.3.0"
+        versionCode = 5
+        versionName = "0.3.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    // The long-lived release key is injected from a GitHub Actions secret only.
+    // No private key or password is ever committed to the repository.
+    val signingKeystorePath = System.getenv("TONMASCHINE_KEYSTORE_FILE")
+    if (!signingKeystorePath.isNullOrBlank()) {
+        signingConfigs {
+            create("persistentRelease") {
+                storeFile = file(signingKeystorePath)
+                storeType = "PKCS12"
+                storePassword = System.getenv("TONMASCHINE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("TONMASCHINE_KEY_ALIAS")
+                keyPassword = System.getenv("TONMASCHINE_KEY_PASSWORD")
+            }
+        }
+        buildTypes {
+            getByName("release") {
+                signingConfig = signingConfigs.getByName("persistentRelease")
+                isMinifyEnabled = false
+            }
+        }
     }
     buildFeatures { compose = true }
     compileOptions {

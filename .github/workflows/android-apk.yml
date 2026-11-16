@@ -1,7 +1,7 @@
 name: Android Tonmaschine APK
 on:
   push:
-    branches: [main, android-tonmaschine-native, android-nas-profiles-darktext]
+    branches: [main, android-tonmaschine-native]
     paths:
       - 'android/**'
       - '.github/workflows/android-apk.yml'
@@ -36,21 +36,104 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.6.0'
-      - name: Run tests and build APK
+      - name: Run tests and build disposable debug APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
-      - name: Upload installable APK
+
+      # Signed builds are NEVER created for pull requests or without the secret.
+      - name: Load private long-lived signing key from GitHub Secret
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          TONMASCHINE_SIGNING_BUNDLE: ${{ secrets.TONMASCHINE_ANDROID_SIGNING }}
+        shell: bash
+        run: |
+          if [ -z "$TONMASCHINE_SIGNING_BUNDLE" ]; then
+            echo "::notice::Signed release skipped. Configure the TONMASCHINE_ANDROID_SIGNING repository secret first."
+            echo "TONMASCHINE_SIGNED_READY=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+          bundle = json.loads(base64.b64decode(
+              os.environ['TONMASCHINE_SIGNING_BUNDLE'], validate=True).decode('utf-8'))
+          if bundle.get('format') != 'tonmaschine-signing-v1':
+              raise RuntimeError('Unsupported signing bundle format')
+          alias = bundle['alias']
+          password = bundle['password']
+          if not re.fullmatch(r'[A-Za-z0-9_-]{5,64}', alias):
+              raise RuntimeError('Invalid key alias')
+          if not isinstance(password, str) or len(password) < 24 or '\n' in password:
+              raise RuntimeError('Invalid signing password')
+          certificate = bundle['certificateSha256'].lower()
+          pinned = Path('signing_certificate.sha256').read_text().strip().lower()
+          if certificate != pinned:
+              raise RuntimeError('Signing certificate does not match repository pin')
+          keydata = base64.b64decode(bundle['keystoreBase64'], validate=True)
+          if len(keydata) > 64 * 1024:
+              raise RuntimeError('Unexpected keystore size')
+          keypath = Path(os.environ['RUNNER_TEMP']) / 'tonmaschine-release-signing.p12'
+          keypath.write_bytes(keydata)
+          keypath.chmod(0o600)
+          print('::add-mask::' + password)
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env:
+              env.write('TONMASCHINE_SIGNED_READY=true\n')
+              env.write(f'TONMASCHINE_KEYSTORE_FILE={keypath}\n')
+              env.write(f'TONMASCHINE_KEYSTORE_PASSWORD={password}\n')
+              env.write(f'TONMASCHINE_KEY_ALIAS={alias}\n')
+              env.write(f'TONMASCHINE_KEY_PASSWORD={password}\n')
+          print('Persistent release signing material prepared (key material not logged).')
+          PY
+      - name: Build permanently signed Android release APK
+        if: env.TONMASCHINE_SIGNED_READY == 'true'
+        run: gradle --no-daemon :app:assembleRelease --stacktrace
+      - name: Verify APK signing certificate and v2 signature
+        if: env.TONMASCHINE_SIGNED_READY == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="app/build/outputs/apk/release/app-release.apk"
+          test -s "$apk"
+          verifier="${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools/36.0.0/apksigner"
+          test -x "$verifier"
+          verification="$("$verifier" verify --verbose --print-certs "$apk")"
+          echo "$verification" | grep -F "Verified using v2 scheme (APK Signature Scheme v2): true"
+          actual="$(printf '%s\n' "$verification" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr '[:upper:]' '[:lower:]')"
+          expected="$(tr -d '[:space:]' < signing_certificate.sha256)"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::APK certificate differs from pinned permanent signing key"
+            exit 1
+          fi
+          echo "Verified permanent Android certificate SHA-256: $actual"
+          sha256sum "$apk"
+      - name: Upload signed APK (only signed release is installable for updates)
+        if: env.TONMASCHINE_SIGNED_READY == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: Tonmaschine-Android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: Tonmaschine-Android-v0.3.1-signed
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 90
-      - name: Publish Android prerelease APK on main
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      - name: Publish signed Android v0.3.1 release
+        if: env.TONMASCHINE_SIGNED_READY == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          gh release create "android-v0.3.0-${GITHUB_SHA::7}" \
-            app/build/outputs/apk/debug/app-debug.apk#Tonmaschine-Android-debug.apk \
-            --prerelease --title "Tonmaschine Android preview ${GITHUB_SHA::7}" \
-            --notes "Android 0.3.0 preview: import/export configuration in JSON or TXT via Android document picker (soundbar IP, NAS path, username, domain and optional plaintext password). Password export requires explicit confirmation. The NAS password is encrypted again on import. Does not export local sound profiles. Device/NAS behavior not verified on physical hardware. Debug-signed APK."
+          set -euo pipefail
+          tag="android-v0.3.1"
+          apk="app/build/outputs/apk/release/app-release.apk"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "The immutable $tag release already exists. Bump Android version for future updates."
+            exit 0
+          fi
+          cp "$apk" "app/build/outputs/apk/release/Tonmaschine-Android-v0.3.1.apk"
+          gh release create "$tag" \
+            "app/build/outputs/apk/release/Tonmaschine-Android-v0.3.1.apk" \
+            --target "$GITHUB_SHA" \
+            --latest=false \
+            --title "Tonmaschine Android v0.3.1 (dauerhaft signiert)" \
+            --notes "Erstes Release mit festem Android-Signaturschluessel. Alle folgenden Updates koennen ueberinstalliert werden, sofern derselbe GitHub Actions Secret TONMASCHINE_ANDROID_SIGNING weiter verwendet und versionCode erhoeht wird. Achtung: Einmaliger Umstieg von alten, anders debug-signierten APKs kann eine Neuinstallation erfordern. Konfiguration vorher exportieren; lokale Klangprofile werden nicht mitgesichert. Physische Geraetepruefung steht aus."

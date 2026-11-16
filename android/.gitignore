@@ -4,3 +4,10 @@ app/build/
 local.properties
 *.iml
 .idea/
+
+# Never commit Android signing keys or exported GitHub secrets.
+*.jks
+*.keystore
+*.p12
+*GitHub_Secret*
+*SIGNING_BUNDLE*
