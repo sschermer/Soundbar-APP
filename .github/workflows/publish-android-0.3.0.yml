@@ -1,0 +1,61 @@
+name: Publish Tonmaschine Android v0.3.0
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-android-0.3.0.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish tested Android 0.3.0 APK without re-signing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: sschermer/Soundbar-APP
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_tag="android-v0.3.0-a5798a9"
+          release_tag="android-v0.3.0"
+          if gh release view "$release_tag" >/dev/null 2>&1; then
+            echo "Release $release_tag already exists."
+            exit 0
+          fi
+          gh release download "$source_tag" --pattern app-debug.apk --dir "$RUNNER_TEMP"
+          test -s "$RUNNER_TEMP/app-debug.apk"
+          mv "$RUNNER_TEMP/app-debug.apk" "$RUNNER_TEMP/Tonmaschine-Android-v0.3.0.apk"
+          sha256sum "$RUNNER_TEMP/Tonmaschine-Android-v0.3.0.apk"
+          cat > "$RUNNER_TEMP/RELEASE_NOTES.md" <<'RELEASE_NOTES'
+          ## Tonmaschine Android 0.3.0
+
+          **Neue Funktion:** Konfiguration als JSON oder TXT exportieren und importieren.
+
+          - Sichert die Soundbar-IP und vorhandene NAS-Verbindungseinstellungen
+          - NAS-Passwort kann auf ausdruecklichen Wunsch mitgesichert werden
+          - Sicherheitswarnung vor dem Export des unverschluesselten NAS-Passworts
+          - Import mit Vorschau und Bestaetigung, anschliessender Verbindungsaufbau
+          - Importierte NAS-Zugangsdaten werden wieder im Android Keystore geschuetzt
+
+          **Datenschutz:** JSON- und TXT-Sicherungsdateien sind unverschluesselt.
+          Enthalten sie ein Passwort, muss die Datei vertraulich aufbewahrt werden.
+
+          **Nicht enthalten:** Klangprofile selbst. NAS-Profile werden nach dem
+          Import erneut vom NAS geladen; vorhandene lokale Profile bleiben erhalten.
+
+          **APK:** Tonmaschine-Android-v0.3.0.apk
+
+          Dieselbe erfolgreich gebaute APK wie im Vorab-Release
+          android-v0.3.0-a5798a9; unveraenderte Dateiinhalte und Signatur.
+          Debug-signiert; physischer LG S95QR-/NAS-Test steht noch aus.
+          Vor einer notwendigen Deinstallation lokale Daten und Einstellungen sichern.
+          RELEASE_NOTES
+          gh release create "$release_tag" "$RUNNER_TEMP/Tonmaschine-Android-v0.3.0.apk" \
+            --title "Tonmaschine Android v0.3.0" \
+            --target a5798a9813a0581ad8e3fc87e1385bf4e793f0cd \
+            --latest=false --notes-file "$RUNNER_TEMP/RELEASE_NOTES.md"
+          gh release view "$release_tag" --json tagName,name,isPrerelease,assets,url
