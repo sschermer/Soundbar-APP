@@ -3,6 +3,14 @@ package de.tonmaschine.android
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
+import android.net.Uri
+import java.io.ByteArrayOutputStream
+import androidx.compose.ui.platform.LocalContext
+import de.tonmaschine.android.storage.BackupFormat
+import de.tonmaschine.android.storage.ConfigurationBackup
+import de.tonmaschine.android.storage.ConfigurationBackupCodec
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -66,6 +74,72 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
     val nasOnline by vm.nasOnline.collectAsState()
     val nasStatus by vm.nasStatus.collectAsState()
     val profileBusy by vm.profileBusy.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var backupStatus by remember { mutableStateOf("") }
+    var exportPassword by remember { mutableStateOf(false) }
+    var pendingExport by remember { mutableStateOf<BackupFormat?>(null) }
+    var pendingImport by remember { mutableStateOf<ConfigurationBackup?>(null) }
+
+    fun writeBackup(uri: Uri, format: BackupFormat) {
+        scope.launch {
+            try {
+                val text = ConfigurationBackupCodec.encode(
+                    vm.configurationBackup(), format, exportPassword)
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri, "w")?.use {
+                        it.write(text.toByteArray(Charsets.UTF_8))
+                    } ?: throw IllegalStateException("Datei kann nicht geöffnet werden")
+                }
+                backupStatus = "Konfiguration als ${format.name} gesichert."
+            } catch (_: Exception) {
+                backupStatus = "Export fehlgeschlagen. Speicherort und Einstellungen prüfen."
+            }
+        }
+    }
+
+    val jsonExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> if (uri != null) writeBackup(uri, BackupFormat.JSON) }
+    val txtExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri -> if (uri != null) writeBackup(uri, BackupFormat.TXT) }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) scope.launch {
+            try {
+                val text = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        val output = ByteArrayOutputStream()
+                        val buffer = ByteArray(4096)
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            if (output.size() + count > ConfigurationBackupCodec.MAX_BYTES)
+                                throw IllegalArgumentException("Datei zu groß")
+                            output.write(buffer, 0, count)
+                        }
+                        output.toString("UTF-8")
+                    } ?: throw IllegalStateException("Datei kann nicht geöffnet werden")
+                }
+                pendingImport = ConfigurationBackupCodec.decode(text)
+                backupStatus = ""
+            } catch (_: Exception) {
+                backupStatus = "Import fehlgeschlagen: keine gültige Tonmaschine-Sicherung."
+            }
+        }
+    }
+    fun requestExport(format: BackupFormat) {
+        if (exportPassword && nasConfig.password.isNotEmpty()) {
+            pendingExport = format
+        } else {
+            if (format == BackupFormat.JSON)
+                jsonExportLauncher.launch("Tonmaschine-Konfiguration.json")
+            else txtExportLauncher.launch("Tonmaschine-Konfiguration.txt")
+        }
+    }
+
     var settings by remember { mutableStateOf(false) }
     var profileDialog by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
@@ -158,6 +232,43 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
                             Text("Bei Verbindungsfehlern werden nur zwischengespeicherte NAS-Profile angezeigt. Speichern und Löschen sind gesperrt.", color = muted)
                         }
                     }
+                    Spacer(Modifier.height(12.dp))
+                    Panel("Konfiguration sichern und wiederherstellen") {
+                        Text("Sichert Soundbar-IP, NAS-Pfad und eingegebene NAS-Zugangsdaten. " +
+                            "Klangprofile selbst sind nicht enthalten.", color = muted)
+                        Row(verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()) {
+                            Checkbox(
+                                checked = exportPassword,
+                                onCheckedChange = { exportPassword = it }
+                            )
+                            Text("NAS-Passwort mit exportieren (unverschlüsselt)",
+                                modifier = Modifier.weight(1f))
+                        }
+                        Text("Achtung: TXT und JSON sind unverschlüsselt. Eine Datei mit " +
+                            "NAS-Passwort sicher aufbewahren und nicht weitergeben.", color = muted)
+                        Row(modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { requestExport(BackupFormat.JSON) },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("JSON exportieren") }
+                            OutlinedButton(
+                                onClick = { requestExport(BackupFormat.TXT) },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("TXT exportieren") }
+                        }
+                        Button(
+                            onClick = {
+                                importLauncher.launch(arrayOf(
+                                    "application/json", "text/plain", "application/octet-stream"))
+                            },
+                            enabled = !profileBusy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Konfiguration importieren") }
+                        if (backupStatus.isNotBlank()) Text(backupStatus, color = muted)
+                    }
+                    Spacer(Modifier.height(12.dp))
                 }
             } else {
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
@@ -273,6 +384,60 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
             Text(message, modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
                 color = if (state.error != null) Color(0xFFFFB4AB) else muted,
                 style = MaterialTheme.typography.bodySmall)
+        }
+        if (pendingExport != null) {
+            val format = pendingExport!!
+            AlertDialog(
+                onDismissRequest = { pendingExport = null },
+                title = { Text("NAS-Passwort unverschlüsselt sichern?") },
+                text = { Text("Diese ${format.name}-Datei enthält dein NAS-Passwort " +
+                    "im Klartext. Wer die Datei erhält, kann die Zugangsdaten lesen. " +
+                    "Nur an einem geschützten Ort speichern.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pendingExport = null
+                        if (format == BackupFormat.JSON)
+                            jsonExportLauncher.launch("Tonmaschine-Konfiguration.json")
+                        else txtExportLauncher.launch("Tonmaschine-Konfiguration.txt")
+                    }) { Text("Trotzdem exportieren") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingExport = null }) { Text("Abbrechen") }
+                }
+            )
+        }
+        if (pendingImport != null) {
+            val backup = pendingImport!!
+            AlertDialog(
+                onDismissRequest = { pendingImport = null },
+                title = { Text("Konfiguration wiederherstellen?") },
+                text = {
+                    Text(
+                        "Vorhandene IP- und NAS-Einstellungen werden ersetzt.\n" +
+                        "Soundbar-IP: ${backup.soundbarIp.ifBlank { "nicht eingetragen" }}\n" +
+                        "NAS-Pfad: ${backup.nas.folder.ifBlank { "nicht eingetragen" }}\n" +
+                        "NAS-Benutzer: ${backup.nas.user.ifBlank { "nicht eingetragen" }}\n" +
+                        "NAS-Passwort enthalten: ${if (backup.nas.password.isNotEmpty()) "Ja" else "Nein"}\n" +
+                        "Speicherort: ${if (backup.source == ProfileSource.NAS) "NAS" else "Lokal"}\n\n" +
+                        "Das NAS-Passwort wird danach wieder verschlüsselt gespeichert. " +
+                        "Lokale Klangprofile werden nicht gelöscht."
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pendingImport = null
+                        if (vm.restoreConfiguration(backup)) {
+                            backupStatus = "Konfiguration importiert."
+                            if (Catalog.validIp(backup.soundbarIp)) connect()
+                        } else {
+                            backupStatus = "Import fehlgeschlagen – Einstellungen prüfen."
+                        }
+                    }) { Text("Wiederherstellen") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingImport = null }) { Text("Abbrechen") }
+                }
+            )
         }
         if (profileDialog) {
             AlertDialog(onDismissRequest = { profileDialog = false },

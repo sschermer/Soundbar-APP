@@ -37,7 +37,13 @@ class NasSettingsStore(context: Context) {
 
     fun saveConnection(info: NasConnection) {
         // Validate before persisting; do not allow a malformed UNC path or embedded credentials.
-        NasPath.folderUrl(info.folder)
+        if (info.folder.isNotBlank()) {
+            NasPath.folderUrl(info.folder)
+        } else {
+            require(info.user.isBlank() && info.domain.isBlank() && info.password.isEmpty()) {
+                "NAS-Zugangsdaten ohne NAS-Pfad"
+            }
+        }
         val encrypted = if (info.password.isEmpty()) null else encrypt(info.password)
         check(prefs.edit()
             .putString("folder", info.folder.trim())

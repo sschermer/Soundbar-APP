@@ -10,7 +10,7 @@ Independent Android companion for LG S95QR, built from the verified Windows refe
 - GitHub Actions runs the tests, builds an APK and publishes a development prerelease for changes to main.
 - Debug-signed GitHub Actions builds can use different temporary signing keys. Upgrading an already installed debug build may therefore fail with a signature mismatch. In that case, uninstall the old Android build first; this deletes **local Android profiles and configuration**, not NAS/Windows profiles. Android signing must be stabilized before official production releases.
 
-## Profile storage (Android v0.2.1)
+## Profile storage (Android v0.3.0)
 
 Open **IP / Einstellungen → Speicherort für Klangprofile**.
 
@@ -26,6 +26,16 @@ NAS profile operations read the current data **under the same `.Tonmaschine_writ
 When NAS is offline the most recently retrieved profiles may still be displayed from an on-device read-only cache and applied to the soundbar. Saving/deleting is disabled until a fresh successful NAS read. Switching to local storage does not copy NAS profiles into local storage or vice versa.
 
 The Windows app can use NAS paths that are mounted on the PC. Android needs SMB access to that same server over the local Wi-Fi. Make sure TCP 445 is reachable and that the account has read/write permission to the folder and can create and delete temporary files and the lock directory.
+
+## Settings import/export (Android v0.3.0)
+
+Open **IP / Einstellungen → Konfiguration sichern und wiederherstellen**.
+
+- Export as `.json` or `.txt` using Android's system file picker. The backup contains the configured soundbar IP, NAS SMB folder, SMB username, domain, and the selected local/NAS profile location.
+- Optional: tick **NAS-Passwort mit exportieren**. This exports the password **unencrypted** after an explicit warning and confirmation. Do not share the file or store it in an untrusted cloud location. Without that option the password is intentionally omitted and must be entered manually after import.
+- Import via Android's document picker. Check the preview and confirm replacement of the IP/NAS configuration. The NAS password is immediately re-encrypted with the new device's Android Keystore; a new local soundbar connection and (if NAS is selected) an NAS read are initiated.
+- Exported configuration does **not** include local sound profiles or the NAS profile contents. NAS profiles stay on the NAS and will be loaded through the restored settings. Local profiles remain unchanged.
+- This is a plain text backup, not an encrypted archive. The file stays wherever the user saves it, not in the app's protected preferences.
 
 ## Scope and limitations
 

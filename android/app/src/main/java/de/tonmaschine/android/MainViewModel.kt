@@ -56,6 +56,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateIp(text: String) { _ip.value = text.trim() }
 
+    /** Backup uses the already decrypted NAS settings in memory, never logging the password. */
+    fun configurationBackup(): ConfigurationBackup = ConfigurationBackup(
+        soundbarIp = _ip.value.trim(),
+        nas = _nasConnection.value,
+        source = _source.value
+    )
+
+    /** Restore portable settings; shared NAS profiles are retrieved from the NAS afterwards. */
+    fun restoreConfiguration(backup: ConfigurationBackup): Boolean {
+        if (_profileBusy.value) {
+            _message.value = "NAS arbeitet noch – Import später wiederholen"
+            return false
+        }
+        return try {
+            backup.validate()
+            val previousNas = _nasConnection.value
+            // Validate before writing anything. Passwords go to encrypted AndroidKeystore storage.
+            nasSettings.saveConnection(backup.nas)
+            store.saveIp(backup.soundbarIp)
+            nasSettings.saveSource(backup.source)
+            if (previousNas != backup.nas) nasSettings.saveCache(emptyMap())
+            _nasConnection.value = backup.nas
+            _ip.value = backup.soundbarIp
+            _source.value = backup.source
+            _nasOnline.value = false
+            _selectedProfile.value = null
+            if (backup.source == ProfileSource.NAS) {
+                _profiles.value = emptyMap()
+                if (backup.nas.folder.isNotBlank()) refreshProfiles()
+            } else {
+                _profiles.value = store.load()
+                _nasStatus.value = "Lokale Profile ausgewählt"
+            }
+            _message.value = "Konfiguration wiederhergestellt"
+            true
+        } catch (_: Exception) {
+            _message.value = "Import fehlgeschlagen – Einstellungen prüfen"
+            false
+        }
+    }
+
     fun connect() {
         if (!Catalog.validIp(ip.value)) {
             _message.value = "Bitte eine gültige IPv4-Adresse eingeben"
