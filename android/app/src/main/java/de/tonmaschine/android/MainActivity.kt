@@ -32,6 +32,7 @@ private val bg = Color(0xFF171B23)
 private val panel = Color(0xFF232936)
 private val blue = Color(0xFF76A9FF)
 private val muted = Color(0xFFA7B4C8)
+private val foreground = Color(0xFFF0F4FA)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,13 +79,21 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
     val active = state.connection == Connection.CONNECTED
     MaterialTheme(colorScheme = darkColorScheme(
         primary = blue, onPrimary = Color(0xFF101B29),
-        background = bg, onBackground = Color.White,
-        surface = panel, onSurface = Color.White,
+        background = bg, onBackground = foreground,
+        surface = panel, onSurface = foreground,
         onSurfaceVariant = muted, outline = Color(0xFF71819D),
         surfaceVariant = Color(0xFF303746),
         secondary = blue, onSecondary = Color(0xFF101B29)
     )) {
-        Column(Modifier.fillMaxSize().background(bg).statusBarsPadding().navigationBarsPadding()) {
+        // A plain Column with a background does not provide a Material content color.
+        // Surface propagates a readable light-on-dark LocalContentColor to plain Texts
+        // (headings, switch labels, selected values, profile names, dialogs).
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = bg,
+            contentColor = foreground
+        ) {
+            Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("TONMASCHINE", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -170,9 +179,12 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
                     item {
                         Panel("Eingang und Audioformat") {
                             var inputExpanded by remember { mutableStateOf(false) }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("Zuspieler", color = muted)
+                            Row(
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Zuspieler", color = muted, style = MaterialTheme.typography.bodyMedium)
                                     Box {
                                         OutlinedButton(onClick = { inputExpanded = true }, enabled = state.canSelectInput) {
                                             Text(Catalog.inputs[state.currentInput] ?: "Nicht erkannt")
@@ -185,8 +197,9 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
                                         }
                                     }
                                 }
-                                Column(Modifier.weight(1f)) {
-                                    Text("Gemeldetes Format", color = muted)
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Gemeldetes Format", color = muted,
+                                        style = MaterialTheme.typography.bodyMedium)
                                     Text(state.audioFormat, fontWeight = FontWeight.Bold, color = blue)
                                 }
                             }
@@ -207,9 +220,9 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
                                     pair.forEach { (label, id) ->
                                         val checked = state.currentMode == id
                                         if (checked) Button(onClick = { vm.chooseMode(id) }, enabled = active,
-                                            modifier = Modifier.weight(1f)) { Text(label, maxLines = 2) }
+                                            modifier = Modifier.weight(1f).height(64.dp)) { Text(label, maxLines = 2) }
                                         else OutlinedButton(onClick = { vm.chooseMode(id) }, enabled = active,
-                                            modifier = Modifier.weight(1f)) { Text(label, maxLines = 2) }
+                                            modifier = Modifier.weight(1f).height(64.dp)) { Text(label, maxLines = 2) }
                                     }
                                     if (pair.size == 1) Spacer(Modifier.weight(1f))
                                 }
@@ -314,20 +327,22 @@ fun Tonmaschine(vm: MainViewModel, connect: () -> Unit) {
                 dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Abbrechen") } }
             )
         }
+        }
     }
 }
 @Composable
 private fun Panel(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().background(panel, RoundedCornerShape(14.dp)).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(title, color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         content()
     }
 }
 @Composable
 private fun ToggleRow(label: String, value: Boolean?, enabled: Boolean, onChanged: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.weight(1f))
+        Text(label, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
         Switch(checked = value ?: false, onCheckedChange = onChanged, enabled = enabled && value != null)
     }
 }

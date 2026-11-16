@@ -50,7 +50,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "android-v0.2.0-${GITHUB_SHA::7}" \
+          gh release create "android-v0.2.1-${GITHUB_SHA::7}" \
             app/build/outputs/apk/debug/app-debug.apk#Tonmaschine-Android-debug.apk \
             --prerelease --title "Tonmaschine Android preview ${GITHUB_SHA::7}" \
-            --notes "Native Android development preview. Not yet verified against a physical LG S95QR. Debug-signed APK."
+            --notes "Android 0.2.1 preview: fixed dark-mode text contrast and aligned input/mode controls. Volume slider and scrolling unchanged. Not yet verified against a physical LG S95QR. Debug-signed APK."

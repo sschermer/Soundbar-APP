@@ -10,7 +10,7 @@ Independent Android companion for LG S95QR, built from the verified Windows refe
 - GitHub Actions runs the tests, builds an APK and publishes a development prerelease for changes to main.
 - Debug-signed GitHub Actions builds can use different temporary signing keys. Upgrading an already installed debug build may therefore fail with a signature mismatch. In that case, uninstall the old Android build first; this deletes **local Android profiles and configuration**, not NAS/Windows profiles. Android signing must be stabilized before official production releases.
 
-## Profile storage (Android v0.2.0)
+## Profile storage (Android v0.2.1)
 
 Open **IP / Einstellungen → Speicherort für Klangprofile**.
 
@@ -32,7 +32,8 @@ The Windows app can use NAS paths that are mounted on the PC. Android needs SMB 
 - Direct encrypted Temescal TCP 9741 connection with automatic reconnect.
 - Volume, input selection, mode selection, seven speaker levels, Night/DRC/Surround.
 - Actual audio format reported in `s_audio_source`; no inferred channel counts.
-- Native Dark Mode with explicit light-on-dark text colors.
+- Native Dark Mode with explicit light-on-dark content colors throughout all app surfaces (contrast correction in v0.2.1).
+- Consistent input spacing and equal-height sound mode buttons. Volume control and scrolling unchanged.
 - Locally stored or shared SMB profile configuration. Manual refresh for external Windows/NAS changes.
 - JVM tests cover codec/framing, state reduction, profile import/serialization, simulated TCP soundbar, NAS path parsing, simulated NAS locking, updates and failures.
 - SMB-to-a-real-NAS and LG S95QR compatibility cannot be established by CI tests alone; physically test before considering NAS writing fully verified.
