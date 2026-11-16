@@ -1,0 +1,58 @@
+name: Publish Tonmaschine Android v0.2.1
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-android-0.2.1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Promote the exact tested v0.2.1 APK without re-signing it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: sschermer/Soundbar-APP
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_tag="android-v0.2.1-f89ba0d"
+          release_tag="android-v0.2.1"
+          if gh release view "$release_tag" >/dev/null 2>&1; then
+            echo "Release $release_tag already exists; skipping."
+            exit 0
+          fi
+          gh release download "$source_tag" --pattern app-debug.apk --dir "$RUNNER_TEMP"
+          test -s "$RUNNER_TEMP/app-debug.apk"
+          mv "$RUNNER_TEMP/app-debug.apk" "$RUNNER_TEMP/Tonmaschine-Android-v0.2.1.apk"
+          sha256sum "$RUNNER_TEMP/Tonmaschine-Android-v0.2.1.apk"
+          cat > "$RUNNER_TEMP/RELEASE_NOTES.md" <<'RELEASE_NOTES'
+          ## Tonmaschine Android 0.2.1
+
+          Native Android-App zur lokalen Steuerung der LG S95QR.
+
+          - Helle, gut lesbare Schrift auf dunkler Oberflaeche
+          - Einheitliche Abstaende und Hoehen der Klangmodus-Schaltflaechen
+          - Bestehende Lautstaerkeregelung und Scrollfunktion unveraendert
+          - Direkte WLAN-Steuerung, Eingangswahl und Anzeige des gemeldeten Audioformats
+          - Lokale und NAS-basierte Klangprofile
+
+          **Download:** Tonmaschine-Android-v0.2.1.apk unter Assets.
+
+          **Wichtig:** Dies ist dieselbe bereits erfolgreich gebaute und getestete APK wie
+          im Vorab-Release android-v0.2.1-f89ba0d; sie wurde nicht erneut signiert.
+          Sie ist weiterhin debug-signiert. Die Funktion aller Bestandteile an einer
+          physischen LG S95QR wurde nicht durch CI-Tests nachgewiesen.
+
+          Bei einer Signaturabweichung zur zuvor installierten APK kann eine Neuinstallation
+          erforderlich sein. Vorher lokale Profile und Einstellungen sichern.
+          RELEASE_NOTES
+          gh release create "$release_tag" "$RUNNER_TEMP/Tonmaschine-Android-v0.2.1.apk" \
+            --title "Tonmaschine Android v0.2.1" \
+            --target f89ba0d6addb0599be483c619ac734b00358bfc5 \
+            --latest=false --notes-file "$RUNNER_TEMP/RELEASE_NOTES.md"
+          gh release view "$release_tag" --json name,tagName,isPrerelease,assets,url
